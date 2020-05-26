@@ -122,11 +122,19 @@ func (l *Ladon) DoPoliciesAllow(r *Request, policies []Policy) (err error) {
 			ppriority = pp.GetPriority()
 		}
 
-		if ppriority >= priority {
+		// if priorities match, deny > allow
+		if ppriority == priority {
 			deciders = append(deciders, p)
 			foundPolicy = true
 			allowed = p.AllowAccess()
+			continue
+		}
+
+		if ppriority > priority {
+			deciders = append(deciders, p)
+			foundPolicy = true
 			priority = ppriority
+			allowed = p.AllowAccess()
 		}
 
 	}
@@ -148,6 +156,8 @@ func (l *Ladon) DoPoliciesAllow(r *Request, policies []Policy) (err error) {
 	l.auditLogger().LogGrantedAccessRequest(r, policies, deciders)
 	return nil
 }
+
+
 
 func (l *Ladon) passesConditions(p Policy, r *Request) bool {
 	for key, condition := range p.GetConditions() {
