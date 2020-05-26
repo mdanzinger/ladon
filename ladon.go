@@ -71,6 +71,8 @@ func (l *Ladon) IsAllowed(r *Request) (err error) {
 // The IsAllowed interface should be preferred since it uses the manager directly. This is a lower level interface for when you don't want to use the ladon manager.
 func (l *Ladon) DoPoliciesAllow(r *Request, policies []Policy) (err error) {
 	var allowed = false
+	var foundPolicy bool
+	var priority int
 	var deciders = Policies{}
 
 	// Iterate through all policies
@@ -114,23 +116,31 @@ func (l *Ladon) DoPoliciesAllow(r *Request, policies []Policy) (err error) {
 			continue
 		}
 
-		// Is the policy's effect `deny`? If yes, this overrides all allow policies -> access denied.
-		if !p.AllowAccess() {
-			deciders = append(deciders, p)
-			l.auditLogger().LogRejectedAccessRequest(r, policies, deciders)
-			go l.metric().RequestDeniedBy(*r, p)
-			return errors.WithStack(ErrRequestForcefullyDenied)
+		pp, ok := p.(PrioritizedPolicy)
+		var ppriority int
+		if ok {
+			ppriority = pp.GetPriority()
 		}
 
-		allowed = true
-		deciders = append(deciders, p)
+		if ppriority >= priority {
+			deciders = append(deciders, p)
+			foundPolicy = true
+			allowed = p.AllowAccess()
+			priority = ppriority
+		}
+
+	}
+
+	if !foundPolicy{
+		go l.metric().RequestNoMatch(*r)
+		l.auditLogger().LogRejectedAccessRequest(r, policies, deciders)
+		return errors.WithStack(ErrRequestDenied)
 	}
 
 	if !allowed {
-		go l.metric().RequestNoMatch(*r)
-
+		go l.metric().RequestDeniedBy(*r, deciders[len(deciders)-1])
 		l.auditLogger().LogRejectedAccessRequest(r, policies, deciders)
-		return errors.WithStack(ErrRequestDenied)
+		return errors.WithStack(ErrRequestForcefullyDenied)
 	}
 
 	l.metric().RequestAllowedBy(*r, deciders)

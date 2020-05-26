@@ -65,6 +65,10 @@ type Policy interface {
 	GetEndDelimiter() byte
 }
 
+type PrioritizedPolicy interface {
+	GetPriority() int
+}
+
 // DefaultPolicy is the default implementation of the policy interface.
 type DefaultPolicy struct {
 	ID          string     `json:"id" gorethink:"id"`
@@ -75,6 +79,12 @@ type DefaultPolicy struct {
 	Actions     []string   `json:"actions" gorethink:"actions"`
 	Conditions  Conditions `json:"conditions" gorethink:"conditions"`
 	Meta        []byte     `json:"meta" gorethink:"meta"`
+	Priority    int `json:"priority" gorethink:"priority"`
+}
+
+// GetPriority returns the Priority of the Policy
+func (p *DefaultPolicy) GetPriority() int{
+	return p.Priority
 }
 
 // UnmarshalJSON overwrite own policy with values of the given in policy in JSON format
